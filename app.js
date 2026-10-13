@@ -24,10 +24,8 @@ const DEPTH=()=>localStorage.getItem("depth")||"normal";
 function eng(c){if(!ENG[c.id]){ENG[c.id]=createEngine(c);Object.assign(ENG[c.id].state,JSON.parse(localStorage.getItem("estate-"+c.id)||"{}"))}return ENG[c.id]}
 function ruleReply(t){const e=eng(C),mem=MEM(),r=e.reply(t,DEPTH(),mem);localStorage.setItem("user-mem",JSON.stringify(mem));localStorage.setItem("estate-"+C.id,JSON.stringify(e.state));return r}
 // ===== AIモード（WebLLM・ブラウザ内） =====
-const S=()=>JSON.parse(localStorage.getItem("local-ai")||'{"on":false,"model":"Qwen2.5-0.5B-Instruct-q4f16_1-MLC"}');
+const S=()=>JSON.parse(localStorage.getItem("local-ai")||'{"on":false,"model":"Qwen2.5-1.5B-Instruct-q4f16_1-MLC"}');
 let engine=null,engineModel=null,loading=null;
-const DP={short:["とても短い返事（1文）",60],normal:["LINEのような短い返事（1〜2文）",150],deep:["少し長めの返事（2〜4文）。自分の話もして、最後に相手への質問を一つ入れる",300]};
-function sysPrompt(c){const m=MEM(),d=DP[DEPTH()]||DP.normal,f=(m.name?`ユーザーの名前は「${m.name}」。`:"")+(m.likes.length?`ユーザーの好きなもの：${m.likes.join("、")}。`:"");return `${c.persona}\n${f}\nルール：ユーザーとチャットしている。標準語のカジュアルな日本語だけで、${d[0]}にする。相手の言葉にちゃんと噛み合う返事をする。常にキャラになりきり、AIであることには触れない。フレンドリーで楽しく、性的・過激な内容は扱わず、そういう話題はやんわり別の話にそらす。`}
 function prog(show,p,t){$("prog").hidden=!show;if(p!=null)$("pbar").style.width=Math.round(p*100)+"%";if(t)$("ptxt").textContent=t;$("hst").textContent=show?"AI準備中… "+Math.round((p||0)*100)+"%":stLabel()}
 async function loadEngine(){const s=S();if(engine&&engineModel===s.model)return engine;if(loading)return loading;
  if(!navigator.gpu)throw Error("このブラウザはWebGPUに対応していません（Chrome/Edge最新版で試してね）");
@@ -35,17 +33,18 @@ async function loadEngine(){const s=S();if(engine&&engineModel===s.model)return 
   if(engine){await engine.unload();engine=null}
   engine=await webllm.CreateMLCEngine(s.model,{initProgressCallback:r=>prog(true,r.progress,r.text)});engineModel=s.model;prog(false);return engine}
   catch(e){prog(false);engine=null;throw e}finally{loading=null}})();return loading}
-async function aiReply(bubble){const eng=await loadEngine(),hist=H.filter(m=>m.w!=="act").slice(-10);
- const st=await eng.chat.completions.create({stream:true,temperature:.8,max_tokens:(DP[DEPTH()]||DP.normal)[1],messages:[{role:"system",content:sysPrompt(C)},...hist.map(m=>({role:m.w==="me"?"user":"assistant",content:m.t}))]});
- let out="";for await(const ch of st){out+=ch.choices[0]?.delta?.content||"";if(bubble){bubble.textContent=out;log.scrollTop=log.scrollHeight}}return out.trim()}
+async function aiGen(eng,msgs,max,bubble){const st=await eng.chat.completions.create({stream:true,temperature:.7,top_p:.9,repetition_penalty:1.1,max_tokens:max,messages:msgs});
+ let out="";for await(const ch of st){out+=ch.choices[0]?.delta?.content||"";if(bubble)bubble(out)}return aiClean(out)}
 async function bot(t){const c=C,ty=document.createElement("div");ty.className="row bot typing";ty.append(avatar(C));ty.insertAdjacentHTML("beforeend",'<div class="b"><span></span><span></span><span></span></div>');log.append(ty);log.scrollTop=log.scrollHeight;
- const wait=ms=>new Promise(r=>setTimeout(r,ms));let txt,err;
- if(S().on){try{const bub=ty.querySelector(".b");let first=true;
-   txt=await aiReply({set textContent(v){if(first){ty.classList.remove("typing");first=false}bub.textContent=v}})}catch(e){err=String(e.message||e).slice(0,90)}}
+ const wait=ms=>new Promise(r=>setTimeout(r,ms));const r=ruleReply(t);let txt=null,err;
+ if(S().on&&!AI_CONFIDENT.includes(r.intent)){try{const eng=await loadEngine(),bub=ty.querySelector(".b");
+   const {messages,max_tokens}=aiMessages(C,AI_PROFILE[C.id],H.filter(m=>m.w==="me"||m.w==="bot"),DEPTH(),MEM(),AI_HINT.includes(r.intent)?r.text.split("\n")[0]:null);
+   for(let i=0;i<2&&!txt;i++){const o=await aiGen(eng,messages,max_tokens,v=>{ty.classList.remove("typing");bub.textContent=v;log.scrollTop=log.scrollHeight});if(!aiBad(o))txt=o}
+  }catch(e){err=String(e.message||e).slice(0,90)}}
  else await wait(600+Math.random()*900);
  ty.remove();if(C!==c)return;
  if(err){const d=document.createElement("div");d.className="row bot err";d.innerHTML='<div class="b"></div>';d.firstChild.textContent="⚠️ AIが使えませんでした："+err+"（いつもの返事にするね）";log.append(d)}
- if(!txt){const r=ruleReply(t);if(r.action)add("act",r.action);txt=r.text}add("bot",txt)}
+ if(!txt){if(r.action)add("act",r.action);txt=r.text}add("bot",txt)}
 $("f").onsubmit=e=>{e.preventDefault();const t=inp.value.trim();if(!t)return;inp.value="";add("me",t);bot(t)};
 $("reset").onclick=()=>{if(confirm(C.name+"との履歴を消しちゃう？")){H=[];localStorage.removeItem("chat-"+C.id);localStorage.removeItem("estate-"+C.id);delete ENG[C.id];log.innerHTML="";add("bot",C.hello)}};
 // 設定パネル

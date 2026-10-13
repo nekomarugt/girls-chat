@@ -6,6 +6,9 @@ function norm(t,c){t=t.normalize("NFKC").replace(/[?]/g,"？").replace(/[!]/g,"�
 const FAV={food:/食べ|たべ|料理|ご飯|ごはん|フード|食い/,drink:/飲み|のみもの|ドリンク/,color:/色/,music:/音楽|曲|歌|アーティスト/,animal:/動物|生き物/,place:/場所|ところ|とこ/,season:/季節/,game:/ゲーム/,movie:/映画|アニメ|本|漫画/};
 // 意図（上から優先）
 const INTENTS=[
+["aiq",t=>/(ＡＩ|AI|ロボット|ボット|bot|プログラム|機械)(なの|だよね|でしょ|？)|人間(なの)?？|中の人/i.test(t)],
+["keigo",t=>/敬語/.test(t)],
+["tsukkomi",t=>/^(なんでやねん|なんでだよ|なんでよ|おいおい|おい[！]*$|いやいや|違うだろ|違うよ|ツッコミ)/.test(t)],
 ["myname",t=>/(私|僕|俺|わたし|ぼく|おれ|うち|自分)の名前(覚えて|わか|知って|は？|何)/.test(t)],
 ["setname",t=>/(?:私|僕|俺|わたし|ぼく|おれ|うち|自分)?の?名前は(.{1,10}?)(?:です|だよ|だ|っていう|って言う)?(?:よ|ね)?[。！]?$/.test(t)&&!/？/.test(t)||/^(.{1,10}?)って呼んで/.test(t)],
 ["mylikes",t=>/(私|僕|俺|わたし|ぼく|おれ|うち)の好きな(もの|こと)/.test(t)],
@@ -48,7 +51,7 @@ function createEngine(c){
  const pkNew=a=>{const f=a.filter(x=>!S.recent.includes(x));return f.length?pk(f):null};
  function reply(raw,depth,mem,now){depth=depth||"normal";now=now||new Date();const t=norm(raw,c),R=c.r;let keepQ=null,it=detect(t),main,topic=null,ask=null,share=null,why="fb";
   const U=mem.name?c.addr(mem.name):c.you;const fill=s=>s.replace(/\{u\}/g,U).replace(/\{prev\}/g,S.lastBot.split(/[。\n]/)[0].slice(0,22)).replace(/\{like\}/g,mem.likes[0]||"");
-  if(S.lastQ&&S.lastQ.topic==="name"&&(!it||it==="setname")&&t.length<=12){const n=t.replace(/^(私|僕|俺|わたし|ぼく|おれ|うち)は?/,"").replace(/(です|だよ|だ|って言います|っていう|って呼んで)?[。！]*$/,"");if(n){mem.name=n;S.lastQ=null;const m=pk(R.setName).replace(/\{n\}/g,c.addr(n));S.lastBot=m;S.lastWhy="react";return {text:m,action:null,intent:"setname"}}}
+  if(S.lastQ&&S.lastQ.topic==="name"&&(!it||it==="setname")&&t.length<=12){const n=t.replace(/^(私|僕|俺|わたし|ぼく|おれ|うち)は?/,"").replace(/(です|だよ|だ|って言います|っていう|って呼んで)?[。！]*$/,"");if(n&&n.length<=8&&!/[をにがでへはもよねか？！]|ない|たい|しよ|行こ|して/.test(n)){mem.name=n;S.lastQ=null;const m=pk(R.setName).replace(/\{n\}/g,c.addr(n));S.lastBot=m;S.lastWhy="react";return {text:m,action:null,intent:"setname"}}}
   // 彼女の質問への返事
   if(S.lastQ&&(!it||["aizuchi","dontknow","setlike","laugh"].includes(it)||it===S.lastQ.topic||S.lastQ.topic==="mood"&&["happy","tired","sad","imfine"].includes(it))){
    const tp=S.lastQ.topic;let lm;if(it==="setlike"&&(lm=t.match(/(.{1,12}?)が(大)?好き/))){addLike(mem,lm[1]);main=pk(R.likeIt).replace("{x}",lm[1])}
@@ -77,6 +80,9 @@ function createEngine(c){
    case "insult":main=pk(R.insult);break;
    case "praise":main=pk(R.praise);break;
    case "activity":main=pk(R.activity);ask={t:pk(R.askActivity),topic:"general"};break;
+   case "aiq":main=pk(R.aiq);break;
+   case "tsukkomi":main=pk(R.tsukkomi);break;
+   case "keigo":main=pk(R.keigo);break;
    case "sorry":main=pk(R.sorry);break;
    case "thanks":main=pk(R.thanks);break;
    case "setlike":{const m=t.match(/(.{1,12}?)が(大)?好き/);addLike(mem,m[1]);main=pk(R.likeIt).replace("{x}",m[1]);ask={t:pk(R.askLike).replace("{x}",m[1]),topic:"general"};break}
@@ -105,4 +111,18 @@ function createEngine(c){
  return {reply,state:S}}
 function addLike(mem,x){x=x.replace(/^(私|僕|俺|わたし|ぼく|おれ|うち)は?/,"");if(x&&!mem.likes.includes(x)){mem.likes.unshift(x);mem.likes=mem.likes.slice(0,8)}}
 G.createEngine=createEngine;G.normText=norm;
+})(typeof window!=="undefined"?window:globalThis);
+// ===== AIモード用プロンプト（ブラウザ・テスト共通） =====
+(function(G){
+const DEPTH_AI={short:["返事は1文だけ。",50],normal:["返事は1〜2文。",90],deep:["返事は2〜3文。自分の話もして、最後に質問を1つ。",160]};
+const BAD=/です|ます|ましょ|ません|でした|お前|ございま|手伝|申し訳|(わたし|私|僕)は(ＡＩ|AI)|(ＡＩ|AI)(です|として|なので|だから)|アシスタント|ご連絡|よろしくお願い|ください|でしょうか|いたします|意味は|という意味|敬語|[你们这吗么]/;
+function aiMessages(c,p,hist,depth,mem,hint){const d=DEPTH_AI[depth]||DEPTH_AI.normal,U=mem.name||"相手";
+ const sys=`わたしは${c.name}。${p.self}\n性格と話し方：${p.style}\nルール：\n・いつも友だちに話すタメ口。「です」「ます」や敬語は絶対に使わない。\n・${d[0]}LINEみたいに短く。\n・わたしは普通の女の子の${c.name}。この設定はずっと変えない。\n・相手の話にリアクションして、ときどき質問を返す。言葉の意味の説明はしない。\n・ツッコミや冗談には${c.name}らしく軽くノる。\n・えっちな話はかわして別の話にする。`+(mem.name?`\n・相手の名前は${mem.name}。`:"")+(mem.likes&&mem.likes.length?`\n・${U}の好きなもの：${mem.likes.join("、")}。`:"")+(hint?`\n・今回はこんな感じで返すといい：「${hint}」`:"");
+ const m=[{role:"system",content:sys}];for(const [u,a] of p.ex)m.push({role:"user",content:u},{role:"assistant",content:a});
+ for(const h of hist.slice(-6))m.push({role:h.w==="me"?"user":"assistant",content:h.t});return {messages:m,max_tokens:d[1]}}
+function aiClean(t){t=(t||"").replace(/^[「『]|[」』]$/g,"").replace(/^(ひまり|しずく|リン)[:：]\s*/,"").trim();const ln=t.split("\n").filter(Boolean);return ln.slice(0,3).join("\n")}
+function aiBad(t){return !t||BAD.test(t)||t.length>220}
+// ルールで確実に答えられる意図はルール返信を使う
+const CONFIDENT=["tsukkomi","aiq","keigo","setlike","greet","bye","whatdoing","hobby","fav","dislike","name","age","where","myname","setname","mylikes","clarify","why","howareyou","sorry","thanks","imfine"];
+G.aiMessages=aiMessages;G.aiClean=aiClean;G.aiBad=aiBad;G.AI_CONFIDENT=CONFIDENT;G.AI_HINT=["sad","tired","work","food","weather","animal","happy","praise","insult","laugh","activity","answer"];
 })(typeof window!=="undefined"?window:globalThis);
