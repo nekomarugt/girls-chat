@@ -6,6 +6,7 @@ function norm(t,c){t=t.normalize("NFKC").replace(/[?]/g,"？").replace(/[!]/g,"�
 const FAV={food:/食べ|たべ|料理|ご飯|ごはん|フード|食い/,drink:/飲み|のみもの|ドリンク/,color:/色/,music:/音楽|曲|歌|アーティスト/,animal:/動物|生き物/,place:/場所|ところ|とこ/,season:/季節/,game:/ゲーム/,movie:/映画|アニメ|本|漫画/};
 // 意図（上から優先）
 const INTENTS=[
+["whatis",t=>/^(.{1,16}?)って(何|なに|なん|どういう|どんな)/.test(t)&&!/(名前|趣味)/.test(t)],
 ["aiq",t=>/(ＡＩ|AI|ロボット|ボット|bot|プログラム|機械)(なの|だよね|でしょ|？)|人間(なの)?？|中の人/i.test(t)],
 ["keigo",t=>/敬語/.test(t)],
 ["tsukkomi",t=>/^(なんでやねん|なんでだよ|なんでよ|おいおい|おい[！]*$|いやいや|違うだろ|違うよ|ツッコミ)/.test(t)],
@@ -19,13 +20,13 @@ const INTENTS=[
 ["howareyou",t=>/元気|げんき|調子どう|調子は|大丈夫？|体調/.test(t)&&/？$|(元気|げんき)(なの|してる|してた|か)$|調子どう$/.test(t)],
 ["whatdoing",t=>/何して|何やって|普段|いつも何|休み(の日)?(は|って)?何|暇な時|ひまなとき|最近どう|今何/.test(t)],
 ["hobby",t=>/趣味/.test(t)],
-["fav",t=>/好きな.{0,8}(は|って|ある|何|教え)|何が好き|好きなもの/.test(t)],
+["fav",t=>/(何|なに)(食べ|飲)(る|てる)の|好きな.{0,8}(は|って|ある|何|教え)|何が好き|好きなもの/.test(t)],
 ["dislike",t=>/苦手|嫌いな.{0,6}(は|ある|何)/.test(t)],
 ["name",t=>/名前|誰|だれ|自己紹介|何者/.test(t)],
 ["age",t=>/何歳|年齢|いくつ|歳は|年は/.test(t)],
 ["where",t=>/どこ(に住|住ん|出身|にいる|いる|から)|住んでる/.test(t)],
 ["likeme",t=>/(私|僕|俺|わたし|ぼく|おれ|うち)のこと(好き|どう思)/.test(t)],
-["setlike",t=>/(.{1,12}?)が(大)?好き(なんだ|です|だよ|だ|なの)?[。！]*$/.test(t)&&!/？/.test(t)],
+["setlike",t=>/(.{1,12}?)が(大)?好き(なんだ|です|だよ|だ|なの)?[。！]*$/.test(t)&&!/？|って(何|なに)|好きな/.test(t)],
 ["insult",t=>/バカ|ばか|アホ|あほ|嫌い|きらい|うざ|ブス|最低|つまらない|つまんない|キモ|きも/.test(t)],
 ["praise",t=>/かわいい|可愛い|かっこいい|カッコいい|すごい|天才|優しい|やさしい|きれい|綺麗|^(好き|大好き)(だよ|です)?[！]*$|最高だね/.test(t)],
 ["sorry",t=>/ごめん|すまん|すみません|悪かった/.test(t)],
@@ -71,7 +72,7 @@ function createEngine(c){
    case "howareyou":main=pk(R.howareyou);ask={t:pk(R.askBack),topic:"mood"};why="self";break;
    case "whatdoing":main=pk(R.whatdoing);share=R.share.routine;ask={t:pk(R.ask.routine),topic:"routine"};why="self";break;
    case "hobby":main=pk(R.hobby);share=R.share.hobby;ask={t:pk(R.ask.hobby),topic:"hobby"};why="self";break;
-   case "fav":{let k="default";for(const f in FAV)if(FAV[f].test(t)){k=f;break}main=pk(R.fav[k]||R.fav.default);topic=QTOPIC[k]||"general";ask={t:pk(R.ask[topic]||R.ask.general),topic};why="self";break}
+   case "fav":{let k="default";for(const f in FAV)if(FAV[f].test(t)){k=f;break}main=pk(R.fav[k]||R.fav.default);topic=QTOPIC[k]||"general";ask={t:topic==="food"?R.ask.food[0]:pk(R.ask[topic]||R.ask.general),topic};why="self";break}
    case "dislike":main=pk(R.dislike);why="self";ask={t:pk(R.ask.general),topic:"general"};break;
    case "name":main=pk(R.name);why="self";if(!mem.name)ask={t:pk(R.askName),topic:"name",force:1};break;
    case "age":main=pk(R.age);why="self";break;
@@ -80,6 +81,8 @@ function createEngine(c){
    case "insult":main=pk(R.insult);break;
    case "praise":main=pk(R.praise);break;
    case "activity":main=pk(R.activity);ask={t:pk(R.askActivity),topic:"general"};break;
+   case "whatis":{const w=t.match(/^(.{1,16}?)って/)[1].replace(/^(その|あの|この)/,"");
+    if(w&&S.lastBot.includes(w)){main=pk(R.whatOwn).replace(/\{x\}/g,w);it="whatown"}else{main=pk(R.whatOther).replace(/\{x\}/g,w)}why="q";break}
    case "aiq":main=pk(R.aiq);break;
    case "tsukkomi":main=pk(R.tsukkomi);break;
    case "keigo":main=pk(R.keigo);break;
@@ -95,7 +98,7 @@ function createEngine(c){
    default:{
     if(/？$/.test(t)){main=pk(R.q);why="q"}
     else{const x=t.replace(/[。！？、]+$/,"").replace(/(んだ|なんだ|です|だよ|だね|よね|よ|ね|かな)$/,"");
-     main=x.length>=2&&x.length<=14&&!/(た|てる|する|い|だ|る|ない|けど|から)$/.test(x)?pk(R.echo).replace("{x}",x):pk(R.listen)}
+     main=x.length>=2&&x.length<=14&&!/(た|てる|する|い|だ|る|ない|けど|から|て|よ|ね|な)$/.test(x)?pk(R.echo).replace("{x}",x):pk(R.listen)}
     if(mem.likes.length&&Math.random()<.15)ask={t:pk(R.recallAsk).replace("{x}",mem.likes[Math.floor(Math.random()*mem.likes.length)]),topic:"general"};
     else ask={t:pk(R.ask.general),topic:"general"}}}
   // 深さで組み立て
@@ -108,21 +111,26 @@ function createEngine(c){
   S.lastQ=ask||keepQ;if(topic)S.lastTopic=topic;else if(ask)S.lastTopic=ask.topic;S.lastBot=fill(main);S.lastWhy=why;S.lastIntent=it;
   let action=null;if(S.actCool>0)S.actCool--;else if(Math.random()<.1){action=pk(c.act);S.actCool=3}
   return {text,action,intent:it||"fallback"}}
- return {reply,state:S}}
+ function noteBot(text){S.lastBot=text;S.lastWhy="fb";S.lastQ=/？\s*$/.test(text)?{t:text.split(/[。！\n]/).pop(),topic:"general"}:null;S.recent.push(text)}
+ return {reply,state:S,noteBot}}
 function addLike(mem,x){x=x.replace(/^(私|僕|俺|わたし|ぼく|おれ|うち)は?/,"");if(x&&!mem.likes.includes(x)){mem.likes.unshift(x);mem.likes=mem.likes.slice(0,8)}}
 G.createEngine=createEngine;G.normText=norm;
 })(typeof window!=="undefined"?window:globalThis);
 // ===== AIモード用プロンプト（ブラウザ・テスト共通） =====
 (function(G){
-const DEPTH_AI={short:["返事は1文だけ。",50],normal:["返事は1〜2文。",90],deep:["返事は2〜3文。自分の話もして、最後に質問を1つ。",160]};
-const BAD=/です|ます|ましょ|ません|でした|お前|ございま|手伝|申し訳|(わたし|私|僕)は(ＡＩ|AI)|(ＡＩ|AI)(です|として|なので|だから)|アシスタント|ご連絡|よろしくお願い|ください|でしょうか|いたします|意味は|という意味|敬語|[你们这吗么]/;
-function aiMessages(c,p,hist,depth,mem,hint){const d=DEPTH_AI[depth]||DEPTH_AI.normal,U=mem.name||"相手";
- const sys=`わたしは${c.name}。${p.self}\n性格と話し方：${p.style}\nルール：\n・いつも友だちに話すタメ口。「です」「ます」や敬語は絶対に使わない。\n・${d[0]}LINEみたいに短く。\n・わたしは普通の女の子の${c.name}。この設定はずっと変えない。\n・相手の話にリアクションして、ときどき質問を返す。言葉の意味の説明はしない。\n・ツッコミや冗談には${c.name}らしく軽くノる。\n・えっちな話はかわして別の話にする。`+(mem.name?`\n・相手の名前は${mem.name}。`:"")+(mem.likes&&mem.likes.length?`\n・${U}の好きなもの：${mem.likes.join("、")}。`:"")+(hint?`\n・今回はこんな感じで返すといい：「${hint}」`:"");
+const DEPTH_AI={short:["返事は1文だけ。",50],normal:["返事は1〜2文。",80],deep:["返事は2〜3文。自分の話も少しして、最後に質問を1つ。",140]};
+const BAD=/^はい[、。]|です|ます|ました|ましょ|ません|でした|かしら|おまえ|お前|[^し]ろ！?$|大嫌い|お前|ございま|手伝|申し訳|(わたし|私|僕)は(ＡＩ|AI)|(ＡＩ|AI)(です|として|なので|だから)|アシスタント|ご連絡|よろしくお願い|ください|でしょうか|いたします|意味は|という意味|敬語|[你们这吗么]/;
+const KATA_OK="ガレージ マシン レース エンジン サーキット ハンバーガー ホットドッグ ケーキ ショートケーキ アニメ ゲーム カフェ コーヒー スピード チューニング パーツ タイヤ ブースト テスト ラーメン カラオケ マカロン ミルクティー クッキー パフェ ベーグル ミステリー ドリンク エネルギー カロリー ツッコミ テンション チーム チームメイト ライバル バイク ドライブ ニュース メッセージ スマホ パソコン プレゼント ストレス リラックス ペース スタート ゴール コース ピット ピットイン レーサー ナイス ベスト ファイト チャンス ホント ゲームセンター ドラマ アイス チョコ チョコレート ジュース コーラ カレー パン ピザ パスタ ランチ ディナー スイーツ メニュー トレーニング ジム ランニング ダッシュ アクセル ブレーキ ハンドル レースゲーム サーキット ドライバー ヘッドセット グローブ フルスロットル ラップ タイム ベストラップ マジ ワクワク ドキドキ ニコニコ ゴロゴロ ゆっくり ハイタッチ ハマって ハマる ピアノ ジャズ カメラ ノート デート ショッピング ドーナツ プリン タピオカ クレープ イチゴ ホットケーキ パンケーキ ココア ハーブティー ミルク シャワー ベッド ソファ テレビ ネット アプリ チャット リン ひまり しずく ストーリー キャラ セリフ シーン ポイント".split(" ");
+function aiMessages(c,p,hist,depth,mem,hint){const d=DEPTH_AI[depth]||DEPTH_AI.normal,last=hist.filter(h=>h.w==="me").slice(-1)[0];
+ const sys=`わたしは${c.name}。${p.self}\n話し方：${p.style}\nルール：\n・相手の最後のメッセージにまっすぐ答える。話をそらさない。\n・いつもタメ口。「です」「ます」や敬語は使わない。\n・${d[0]}\n・相手が出した知らない作品名や言葉にだけは、知ったかぶりせず「それなに？」と聞く。
+・やさしい言葉づかい。「〜しろ」「お前」など乱暴な言い方はしない。\n・商品名・作品名・新しい言葉をでっちあげない。\n・わたしは普通の女の子の${c.name}。この設定は変えない。\n・えっちな話はかわす。`+(mem.name?`\n・相手の名前は${mem.name}。`:"")+(mem.likes&&mem.likes.length?`\n・相手の好きなもの：${mem.likes.join("、")}。`:"")+(hint?`\n・参考（${c.name}ならこう返しそう）：「${hint}」`:"");
  const m=[{role:"system",content:sys}];for(const [u,a] of p.ex)m.push({role:"user",content:u},{role:"assistant",content:a});
- for(const h of hist.slice(-6))m.push({role:h.w==="me"?"user":"assistant",content:h.t});return {messages:m,max_tokens:d[1]}}
+ for(const h of hist.slice(-6))m.push({role:h.w==="me"?"user":"assistant",content:h.t});return {messages:m,max_tokens:d[1],temperature:.5}}
 function aiClean(t){t=(t||"").replace(/^[「『]|[」』]$/g,"").replace(/^(ひまり|しずく|リン)[:：]\s*/,"").trim();const ln=t.split("\n").filter(Boolean);return ln.slice(0,3).join("\n")}
-function aiBad(t){return !t||BAD.test(t)||t.length>220}
+// 文脈にない新しいカタカナ語（でっちあげ）を検出
+function newKatakana(t,ctx){const ws=t.match(/[ァ-ヶー]{3,}/g)||[];return ws.filter(w=>!ctx.includes(w)&&!KATA_OK.some(k=>k.includes(w)||w.includes(k)))}
+function aiBad(t,ctx){return !t||BAD.test(t)||t.length>200||(ctx!=null&&newKatakana(t,ctx).length>0)}
 // ルールで確実に答えられる意図はルール返信を使う
-const CONFIDENT=["tsukkomi","aiq","keigo","setlike","greet","bye","whatdoing","hobby","fav","dislike","name","age","where","myname","setname","mylikes","clarify","why","howareyou","sorry","thanks","imfine"];
-G.aiMessages=aiMessages;G.aiClean=aiClean;G.aiBad=aiBad;G.AI_CONFIDENT=CONFIDENT;G.AI_HINT=["sad","tired","work","food","weather","animal","happy","praise","insult","laugh","activity","answer"];
+const CONFIDENT=["whatown","tsukkomi","aiq","keigo","setlike","greet","bye","whatdoing","hobby","fav","dislike","name","age","where","myname","setname","mylikes","clarify","why","howareyou","sorry","thanks","imfine"];
+G.aiMessages=aiMessages;G.aiClean=aiClean;G.aiBad=aiBad;G.newKatakana=newKatakana;G.AI_CONFIDENT=CONFIDENT;G.AI_HINT=["sad","tired","work"];
 })(typeof window!=="undefined"?window:globalThis);

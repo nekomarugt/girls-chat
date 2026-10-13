@@ -22,6 +22,7 @@ function add(w,t,save=true){const m={w,t,at:tm()};if(save){H.push(m);localStorag
 const ENG={};const MEM=()=>JSON.parse(localStorage.getItem("user-mem")||'{"name":null,"likes":[]}');
 const DEPTH=()=>localStorage.getItem("depth")||"normal";
 function eng(c){if(!ENG[c.id]){ENG[c.id]=createEngine(c);Object.assign(ENG[c.id].state,JSON.parse(localStorage.getItem("estate-"+c.id)||"{}"))}return ENG[c.id]}
+const eng0=()=>eng(C);
 function ruleReply(t){const e=eng(C),mem=MEM(),r=e.reply(t,DEPTH(),mem);localStorage.setItem("user-mem",JSON.stringify(mem));localStorage.setItem("estate-"+C.id,JSON.stringify(e.state));return r}
 // ===== AIモード（WebLLM・ブラウザ内） =====
 const S=()=>JSON.parse(localStorage.getItem("local-ai")||'{"on":false,"model":"Qwen2.5-1.5B-Instruct-q4f16_1-MLC"}');
@@ -33,18 +34,20 @@ async function loadEngine(){const s=S();if(engine&&engineModel===s.model)return 
   if(engine){await engine.unload();engine=null}
   engine=await webllm.CreateMLCEngine(s.model,{initProgressCallback:r=>prog(true,r.progress,r.text)});engineModel=s.model;prog(false);return engine}
   catch(e){prog(false);engine=null;throw e}finally{loading=null}})();return loading}
-async function aiGen(eng,msgs,max,bubble){const st=await eng.chat.completions.create({stream:true,temperature:.7,top_p:.9,repetition_penalty:1.1,max_tokens:max,messages:msgs});
+async function aiGen(eng,msgs,max,bubble,temp){const st=await eng.chat.completions.create({stream:true,temperature:temp||.5,top_p:.9,repetition_penalty:1.1,max_tokens:max,messages:msgs});
  let out="";for await(const ch of st){out+=ch.choices[0]?.delta?.content||"";if(bubble)bubble(out)}return aiClean(out)}
 async function bot(t){const c=C,ty=document.createElement("div");ty.className="row bot typing";ty.append(avatar(C));ty.insertAdjacentHTML("beforeend",'<div class="b"><span></span><span></span><span></span></div>');log.append(ty);log.scrollTop=log.scrollHeight;
  const wait=ms=>new Promise(r=>setTimeout(r,ms));const r=ruleReply(t);let txt=null,err;
  if(S().on&&!AI_CONFIDENT.includes(r.intent)){try{const eng=await loadEngine(),bub=ty.querySelector(".b");
-   const {messages,max_tokens}=aiMessages(C,AI_PROFILE[C.id],H.filter(m=>m.w==="me"||m.w==="bot"),DEPTH(),MEM(),AI_HINT.includes(r.intent)?r.text.split("\n")[0]:null);
-   for(let i=0;i<2&&!txt;i++){const o=await aiGen(eng,messages,max_tokens,v=>{ty.classList.remove("typing");bub.textContent=v;log.scrollTop=log.scrollHeight});if(!aiBad(o))txt=o}
+   const {messages,max_tokens,temperature}=aiMessages(C,AI_PROFILE[C.id],H.filter(m=>m.w==="me"||m.w==="bot"),DEPTH(),MEM(),AI_HINT.includes(r.intent)?r.text.split("\n")[0]:null);
+   const ctx=H.map(m=>m.t).join(" ")+" "+C.r.whatdoing.join(" ")+" "+AI_PROFILE[C.id].self;
+   for(let i=0;i<2&&!txt;i++){const o=await aiGen(eng,messages,max_tokens,v=>{ty.classList.remove("typing");bub.textContent=v;log.scrollTop=log.scrollHeight},temperature);if(!aiBad(o,ctx))txt=o}
+   if(txt)eng0().noteBot(txt)
   }catch(e){err=String(e.message||e).slice(0,90)}}
  else await wait(600+Math.random()*900);
  ty.remove();if(C!==c)return;
  if(err){const d=document.createElement("div");d.className="row bot err";d.innerHTML='<div class="b"></div>';d.firstChild.textContent="⚠️ AIが使えませんでした："+err+"（いつもの返事にするね）";log.append(d)}
- if(!txt){if(r.action)add("act",r.action);txt=r.text}add("bot",txt)}
+ if(!txt){if(r.action)add("act",r.action);txt=r.text}localStorage.setItem("estate-"+C.id,JSON.stringify(eng0().state));add("bot",txt)}
 $("f").onsubmit=e=>{e.preventDefault();const t=inp.value.trim();if(!t)return;inp.value="";add("me",t);bot(t)};
 $("reset").onclick=()=>{if(confirm(C.name+"との履歴を消しちゃう？")){H=[];localStorage.removeItem("chat-"+C.id);localStorage.removeItem("estate-"+C.id);delete ENG[C.id];log.innerHTML="";add("bot",C.hello)}};
 // 設定パネル
