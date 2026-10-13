@@ -7,9 +7,10 @@
 <main id="log"></main><form id="f"><input id="in" placeholder="メッセージを入力…" autocomplete="off"><button>送信</button></form></section>
 </div>
 <div id="dlg" hidden><div class="panel"><h2>⚙️ 設定</h2>
+<label>会話の深さ<select id="dp"><option value="short">あっさり（短め）</option><option value="normal">ふつう</option><option value="deep">がっつり（長め・質問多め）</option></select></label>
 <label class="tg"><input type="checkbox" id="aion"> AIモード（ブラウザ内・無料）</label>
 <label>モデル<select id="am"><option value="Qwen2.5-0.5B-Instruct-q4f16_1-MLC">Qwen2.5 0.5B（スマホ向け・軽量・おすすめ・約400MB）</option><option value="Qwen2.5-1.5B-Instruct-q4f16_1-MLC">Qwen2.5 1.5B（高品質・約1GB・PC向け）</option></select></label>
 <p class="note">AIはこのブラウザの中だけで動きます（APIキー不要・無料・会話は外部に送られません）。初回だけモデル（数百MB）をダウンロードするので<b>Wi-Fi推奨</b>。、次回からはキャッシュされます。WebGPU対応ブラウザ（Chrome / Edge 最新版）が必要です。オフのときはいつものルール返信だよ。</p>
 <div id="prog" hidden><div class="bar"><i id="pbar"></i></div><div id="ptxt" class="note"></div></div>
 <div class="btns"><button id="ssave">保存</button><button id="sclose" class="sub2">閉じる</button></div></div></div>
-<script src="characters.js"></script><script src="app.js"></script></body></html>
+<script src="characters.js"></script><script src="engine.js"></script><script src="app.js"></script></body></html>
